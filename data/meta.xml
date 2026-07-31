@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+    <name>Wii Meta-Client</name>
+    <version>0.1.0</version>
+    <release_date>20260731</release_date>
+    <coder>toxicwind</coder>
+    <short_description>Unified game/homebrew browser</short_description>
+    <long_description>Browse and download from Vimm's Lair, Open Shop Channel, Archive.org, and GameTDB. All sources in one app.</long_description>
+    <ahb_access/>
+</app>

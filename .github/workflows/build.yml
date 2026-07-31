@@ -1,0 +1,56 @@
+name: Build Wii Meta-Client
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install devkitPro
+      run: |
+        wget -q https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
+        sudo dpkg -i devkitpro-pacman.amd64.deb
+        sudo dkp-pacman -Syu --noconfirm
+        sudo dkp-pacman -S --noconfirm wii-dev wii-portlibs
+        echo "DEVKITPPC=/opt/devkitpro/devkitPPC" >> $GITHUB_ENV
+        echo "/opt/devkitpro/devkitPPC/bin" >> $GITHUB_PATH
+        echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
+
+    - name: Build
+      run: |
+        export DEVKITPPC=/opt/devkitpro/devkitPPC
+        make clean || true
+        make
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wii-meta-client-dol
+        path: |
+          *.dol
+          *.elf
+
+    - name: Create Release
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          *.dol
+          *.elf
+        tag_name: v0.1.0-${{ github.run_number }}
+        name: Wii Meta-Client v0.1.0-${{ github.run_number }}
+        body: |
+          Automated build of Wii Meta-Client
+          - Browse Vimm's Lair, OSC, Archive.org, GameTDB
+          - Download games and homebrew directly on Wii
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
