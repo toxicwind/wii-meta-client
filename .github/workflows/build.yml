@@ -10,47 +10,72 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install devkitPro
-      run: |
-        wget -q https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman.amd64.deb
-        sudo dpkg -i devkitpro-pacman.amd64.deb
-        sudo dkp-pacman -Syu --noconfirm
-        sudo dkp-pacman -S --noconfirm wii-dev wii-portlibs
-        echo "DEVKITPPC=/opt/devkitpro/devkitPPC" >> $GITHUB_ENV
-        echo "/opt/devkitpro/devkitPPC/bin" >> $GITHUB_PATH
-        echo "/opt/devkitpro/tools/bin" >> $GITHUB_PATH
+      - name: Cache devkitPro
+        id: cache-devkit
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: ${{ runner.os }}-devkit-r42-1
 
-    - name: Build
-      run: |
-        export DEVKITPPC=/opt/devkitpro/devkitPPC
-        make clean || true
-        make
+      - name: Download devkitPPC r42.2-1, libogc 2.4.0 and required tools
+        if: steps.cache-devkit.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p cache && cd cache
+          wget -q "https://wii.leseratte10.de/devkitPro/file.php/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst"
+          wget -q "https://wii.leseratte10.de/devkitPro/file.php/devkitppc-rules-1.1.1-1-any.pkg.tar.xz"
+          wget -q "https://wii.leseratte10.de/devkitPro/file.php/libogc-2.4.0-1-any.pkg.tar.zst"
+          wget -q "https://wii.leseratte10.de/devkitPro/file.php/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz"
+          wget -q "https://wii.leseratte10.de/devkitPro/file.php/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz"
+          cd ..
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: wii-meta-client-dol
-        path: |
-          *.dol
-          *.elf
+      - name: Extract devkitPro
+        run: |
+          mkdir -p devkitpro
+          tar -xf cache/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst --strip-components=1 -C devkitpro
+          tar -xf cache/devkitppc-rules-1.1.1-1-any.pkg.tar.xz --strip-components=1 -C devkitpro
+          tar -xf cache/libogc-2.4.0-1-any.pkg.tar.zst --strip-components=1 -C devkitpro
+          tar -xf cache/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz --strip-components=1 -C devkitpro
+          tar -xf cache/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz --strip-components=1 -C devkitpro
+          ls -la devkitpro/devkitPPC/bin/
 
-    - name: Create Release
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          *.dol
-          *.elf
-        tag_name: v0.1.0-${{ github.run_number }}
-        name: Wii Meta-Client v0.1.0-${{ github.run_number }}
-        body: |
-          Automated build of Wii Meta-Client
-          - Browse Vimm's Lair, OSC, Archive.org, GameTDB
-          - Download games and homebrew directly on Wii
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compile
+        run: |
+          export PATH=$(pwd)/devkitpro/devkitPPC/bin:$(pwd)/devkitpro/tools/bin:$PATH
+          export DEVKITPPC=$(pwd)/devkitpro/devkitPPC
+          export DEVKITPRO=$(pwd)/devkitpro
+          make clean || true
+          make
+
+      - name: Package
+        run: |
+          mkdir -p dist/apps/wii-meta-client
+          cp *.dol dist/apps/wii-meta-client/boot.dol || true
+          cp data/meta.xml dist/apps/wii-meta-client/meta.xml || true
+          cp data/icon.png dist/apps/wii-meta-client/icon.png || true
+          ls -la dist/apps/wii-meta-client/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wii-meta-client-dol
+          path: dist/
+
+      - name: Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/**/*.dol
+            dist/**/*.elf
+          tag_name: v0.1.0-${{ github.run_number }}
+          name: Wii Meta-Client v0.1.0-${{ github.run_number }}
+          body: |
+            Automated build of Wii Meta-Client
+            - Browse Vimm's Lair, OSC, Archive.org, GameTDB
+            - Download games and homebrew directly on Wii
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
