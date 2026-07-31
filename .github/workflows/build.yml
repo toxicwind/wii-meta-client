@@ -1,11 +1,6 @@
-name: Build Wii Meta-Client
+name: Build binaries
 
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
-  workflow_dispatch:
+on: [push, pull_request]
 
 jobs:
   build:
@@ -14,41 +9,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache devkitPro
-        id: cache-devkit
+      - name: Cache
+        id: cache-1
         uses: actions/cache@v4
         with:
           path: cache
-          key: ${{ runner.os }}-devkit-r42-1
+          key: ${{ runner.os }}-cache-1
 
       - name: Download devkitPPC r42.2-1, libogc 2.4.0 and required tools
-        if: steps.cache-devkit.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p cache && cd cache
-          wget -q "https://wii.leseratte10.de/devkitPro/file.php/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst"
-          wget -q "https://wii.leseratte10.de/devkitPro/file.php/devkitppc-rules-1.1.1-1-any.pkg.tar.xz"
-          wget -q "https://wii.leseratte10.de/devkitPro/file.php/libogc-2.4.0-1-any.pkg.tar.zst"
-          wget -q "https://wii.leseratte10.de/devkitPro/file.php/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz"
-          wget -q "https://wii.leseratte10.de/devkitPro/file.php/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz"
+        if: steps.cache-1.outputs.cache-hit != 'true'
+        run: | 
+          mkdir cache && cd cache
+          wget "https://wii.leseratte10.de/devkitPro/file.php/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst"
+          wget "https://wii.leseratte10.de/devkitPro/file.php/devkitppc-rules-1.1.1-1-any.pkg.tar.xz"
+          wget "https://wii.leseratte10.de/devkitPro/file.php/libogc-2.4.0-1-any.pkg.tar.zst"
+          wget "https://wii.leseratte10.de/devkitPro/file.php/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz"
+          wget "https://wii.leseratte10.de/devkitPro/file.php/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz"
           cd ..
 
-      - name: Extract devkitPro
-        run: |
-          mkdir -p devkitpro
-          tar -xf cache/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst --strip-components=1 -C devkitpro
-          tar -xf cache/devkitppc-rules-1.1.1-1-any.pkg.tar.xz --strip-components=1 -C devkitpro
-          tar -xf cache/libogc-2.4.0-1-any.pkg.tar.zst --strip-components=1 -C devkitpro
-          tar -xf cache/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz --strip-components=1 -C devkitpro
-          tar -xf cache/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz --strip-components=1 -C devkitpro
-          ls -la devkitpro/devkitPPC/bin/
+      - name: Extract downloaded files
+        run: | 
+          tar -xf cache/devkitPPC-r42.2-1-linux_x86_64.pkg.tar.zst --strip-components=1
+          tar -xf cache/devkitppc-rules-1.1.1-1-any.pkg.tar.xz --strip-components=1
+          tar -xf cache/libogc-2.4.0-1-any.pkg.tar.zst --strip-components=1
+          tar -xf cache/general-tools-1.2.0-2-linux_x86_64.pkg.tar.xz --strip-components=1
+          tar -xf cache/gamecube-tools-1.0.3-1-linux_x86_64.pkg.tar.xz --strip-components=1
 
       - name: Compile
         run: |
-          export PATH=$(pwd)/devkitpro/devkitPPC/bin:$(pwd)/devkitpro/tools/bin:$PATH
-          export DEVKITPPC=$(pwd)/devkitpro/devkitPPC
-          export DEVKITPRO=$(pwd)/devkitpro
-          make clean || true
-          make
+          PATH=$(pwd)/devkitpro/devkitPPC/bin:$PATH DEVKITPPC=$(pwd)/devkitpro/devkitPPC DEVKITPRO=$(pwd)/devkitpro make
 
       - name: Package
         run: |
@@ -56,26 +45,10 @@ jobs:
           cp *.dol dist/apps/wii-meta-client/boot.dol || true
           cp data/meta.xml dist/apps/wii-meta-client/meta.xml || true
           cp data/icon.png dist/apps/wii-meta-client/icon.png || true
-          ls -la dist/apps/wii-meta-client/
+          echo "sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Upload artifact
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
-        with:
-          name: wii-meta-client-dol
+        with: 
+          name: wii-meta-client_${{ env.sha }}
           path: dist/
-
-      - name: Release
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            dist/**/*.dol
-            dist/**/*.elf
-          tag_name: v0.1.0-${{ github.run_number }}
-          name: Wii Meta-Client v0.1.0-${{ github.run_number }}
-          body: |
-            Automated build of Wii Meta-Client
-            - Browse Vimm's Lair, OSC, Archive.org, GameTDB
-            - Download games and homebrew directly on Wii
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
