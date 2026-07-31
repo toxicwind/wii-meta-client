@@ -1,40 +1,34 @@
-#ifndef HTTP_CLIENT_H
-#define HTTP_CLIENT_H
+#ifndef _HTTP_H_
+#define _HTTP_H_
 
-#include <string>
-#include <functional>
+#include <gctypes.h>
+#define TCP_CONNECT_TIMEOUT 5000
+#define TCP_BLOCK_SIZE (16 * 1024)
+#define TCP_BLOCK_RECV_TIMEOUT 4000
+#define TCP_BLOCK_SEND_TIMEOUT 4000
 
-class HttpClient {
-public:
-    bool init();
-    void shutdown();
+s32 tcp_socket (void);
+s32 tcp_connect (char *host, const u16 port);
 
-    // Simple GET
-    std::string get(const std::string& url);
+char * tcp_readln (const s32 s, const u16 max_length, const u64 start_time, const u32 timeout);
+bool tcp_read (const s32 s, u8 **buffer, const u32 length);
+bool tcp_write (const s32 s, const u8 *buffer, const u32 length);
 
-    // HEAD check
-    bool head(const std::string& url);
+#define HTTP_TIMEOUT 300000
 
-    // Chunked download with progress
-    bool download(const std::string& url, 
-                  const std::string& path,
-                  std::function<void(int64_t, int64_t)> progress = nullptr);
+typedef enum {
+	HTTPR_OK,
+	HTTPR_ERR_CONNECT,
+	HTTPR_ERR_REQUEST,
+	HTTPR_ERR_STATUS,
+	HTTPR_ERR_TOOBIG,
+	HTTPR_ERR_RECEIVE
+} http_res;
 
-    // URL encode
-    std::string url_encode(const std::string& str);
-
-    // Range request (resume)
-    std::string get_range(const std::string& url, int64_t start, int64_t end);
-
-private:
-    int socket_fd;
-    bool ssl_enabled;
-
-    bool connect(const std::string& host, int port);
-    std::string request(const std::string& method, 
-                        const std::string& path,
-                        const std::string& host,
-                        const std::string& extra_headers = "");
-};
+bool http_request (const char *url, const u32 max_size);
+bool http_get_result (u32 *http_status, u8 **content, u32 *length);
+int download_file(char *url, u8 **outbuf, u32 *outlen);
+void http_deinit(void);
 
 #endif
+
